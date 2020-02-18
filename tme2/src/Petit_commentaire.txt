@@ -1,0 +1,9 @@
+Bonjour, 
+
+Malgré de nombreux efforts, je n'ai pas réussi à créer un makefile, 
+je suis désolé. Néanmoins je vous, joint une image de mes résultats. 
+Sachant que j'écris également les résultats dans des fichiers .Txt . 
+
+Bien cordialement, 
+
+Claire BARDOUX
