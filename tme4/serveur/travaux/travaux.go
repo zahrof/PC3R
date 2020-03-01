@@ -11,7 +11,7 @@ import (
 
 
 func f1(p st.Personne) st.Personne {
-	return  st.Personne{Age:4000, Nom:p.Nom, Prenom:p.Prenom, Sexe:p.Sexe}
+	return  st.Personne{Age:4000, Nom:p.Nom, Prenom:p.Prenom+"TOOOOOOO", Sexe:p.Sexe}
 }
 
 func f2(p st.Personne) st.Personne {
