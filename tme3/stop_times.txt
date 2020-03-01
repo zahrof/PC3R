@@ -1,3 +1,4 @@
+trip_id,arrival_time,departure_time,stop_id,stop_sequence,stop_headsign,pickup_type,drop_off_type,shape_dist_traveled
 OCESN006749F0200211549,19:20:00,19:20:00,StopPoint:OCETGV INOUI-87686006,0,"",0,0,
 OCESN006749F0200211549,20:57:00,21:01:00,StopPoint:OCETGV INOUI-87713040,1,"",0,0,
 OCESN006749F0200211549,21:24:00,21:27:00,StopPoint:OCETGV INOUI-87713412,2,"",0,0,
