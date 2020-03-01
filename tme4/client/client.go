@@ -287,12 +287,12 @@ rW := make(chan personne_int)
 	for {
 		select {
 		case work := <-rW:
-			if turnProd > turnWork {
+			if turnProd>turnWork {
 				fmt.Println("worker")
 					queue = append(queue, work)
 				turnWork = turnWork+1
 			}
-			//}
+
 		case prod := <-rP:
 			if turnProd == turnWork {
 				fmt.Println("prod")
@@ -302,12 +302,15 @@ rW := make(chan personne_int)
 		}
 		//fmt.Println("popo")
 		if len(queue)>0 {
-		toSend := queue[0]
-		queue = queue[1:]
-		uW <- requete{personne: toSend,retourW:rW, retourP:rP}
-		npe := personne_emp{}
-		uP <- requete{personne: &npe, retourW: rW, retourP: rP}
+			toSend := queue[0]
+			queue = queue[1:]
+			uW <- requete{personne: toSend, retourW: rW, retourP: rP}
 		}
+		if len(queue)<TAILLE_G {
+			npe := personne_emp{}
+			uP <- requete{personne: &npe, retourW: rW, retourP: rP}
+		}
+
 		//toWorker <- toSend
 //fmt.Println("queue "+ queue[0].vers_string())
 //time.Sleep(time.Duration(5000) * time.Millisecond)
