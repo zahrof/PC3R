@@ -355,13 +355,13 @@ lire := make (chan message_lec)
 //des gestionnaires, des ouvriers
 go func() { lecteur(lire)}()
 go func() { collecteur(toCollector,fintemps)}()
-for i := 0 ; i <1 ; i++ {
+for i := 0 ; i <NB_O ; i++ {
 go func() { ouvrier(toCollector, uW ) }()
 }
-for i := 0 ; i <1 ; i++ {
+for i := 0 ; i <NB_P ; i++ {
 go func() { producteur(lire, uP) }()
 }
-for i := 0 ; i <1 ; i++ {
+for i := 0 ; i <NB_G ; i++ {
 go func() { gestionnaire(uP, uW) }()
 }
 
