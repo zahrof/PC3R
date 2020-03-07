@@ -150,24 +150,19 @@ func (p personne_dist) donne_statut() string {
 // il doit utiliser une connection TCP sur le port donné en ligne de commande
 func proxy(port string, u chan message_proxy) {
 	add := ADRESSE + ":"+ port
-	fmt.Println(add)
-	conn, err := net.Dial("tcp", add)
-	if err != nil{
-		fmt.Println("mauvais port !! ")
-		return
-	}
+	conn, _ := net.Dial("tcp", add)
 
 	for {
-		demande := <- u
-		fmt.Println("demande de : "+ demande.methode)
-		requete := strconv.Itoa(demande.identifiant)+ ","+ demande.methode+ "\n"
+		m_proxy := <- u
+		requete := strconv.Itoa(m_proxy.identifiant)+ ","+ m_proxy.methode+ "\n"
 		fmt.Fprint(conn, fmt.Sprintf(requete))
 		reponse,_ := bufio.NewReader(conn).ReadString('\n')
 		reponse = strings.TrimSuffix(reponse, "\n")
-		fmt.Println("j'ai reç ma demande de  de : "+ demande.methode)
+		fmt.Println("j'ai reç ma m_proxy de  de : "+ m_proxy.methode)
 		fmt.Println("réponse "+ reponse)
-		demande.retour <- reponse
+		m_proxy.retour <- reponse
 	}
+	conn.Close()
 }
 
 // Partie 1 : contacté par la méthode initialise() de personne_emp, récupère une ligne donnée dans le fichier source
@@ -200,29 +195,19 @@ func lecteur(url chan message_lec) {
 // Si le statut est V, ils initialise le paquet de personne puis le repasse aux gestionnaires
 // Si le statut est R, ils travaille une fois sur le paquet puis le repasse aux gestionnaires
 // Si le statut est C, ils passent le paquet au collecteur
-func ouvrier( toCollector chan personne_int, uW chan requete, uPDW chan requete) {
+func ouvrier( fromGest chan personne_int, toGest chan personne_int, toCollector chan personne_int) {
 	for{
-		//paquet := <- fromGest
-		req := <- uW
-		fmt.Println("workeraaaa")
-		go func ( r requete ){
-			switch r.personne.donne_statut() {
-			case "V":
-				r.personne.initialise()
-				fmt.Println("i've come back from initializing the packet : " + r.personne.vers_string())
-				r.retourW <- r.personne
-
-				fmt.Println("i've sent the packet " + r.personne.vers_string())
-			case "R":
-				fmt.Println("i'm working the packet : " + r.personne.vers_string())
-				r.personne.travaille()
-				r.retourW <- r.personne
-
-			case "C":
-				fmt.Println("i'm finishing the packet : " + r.personne.vers_string())
-				toCollector <- r.personne
-			}
-		}(req)
+		paquet := <- fromGest
+		switch paquet.donne_statut() {
+		case "V":
+			paquet.initialise()
+			toGest <- paquet
+		case "R":
+			paquet.travaille()
+			toGest <- paquet
+		case "C":
+			toCollector <- paquet
+		}
 	}
 
 }
@@ -230,15 +215,11 @@ func ouvrier( toCollector chan personne_int, uW chan requete, uPDW chan requete)
 // Partie 1: les producteurs cree des personne_int implementees par des personne_emp initialement vides,
 // de statut V mais contenant un numéro de ligne (pour etre initialisee depuis le fichier texte)
 // la personne est passée aux gestionnaires
-func producteur(lire chan message_lec, uP chan requete) {
+func producteur(lire chan message_lec, prodChan chan personne_int) {
 	for {
-		req := <-uP
-		go func ( r requete ){
-			np := pers_vide
-			nt := make([]func (st.Personne) st.Personne, 0)
-			npe := personne_emp{statut: "V", ligne:rand.Intn(TAILLE_SOURCE), aFaire:nt, Personne :np, lecture:lire}
-			r.retourP <- personne_int(&npe)
-		}(req)
+		nt := make([]func (st.Personne) st.Personne, 0)
+		npe := personne_emp{statut: "V", ligne:rand.Intn(TAILLE_SOURCE), aFaire:nt, Personne :pers_vide, lecture:lire}
+		prodChan <- personne_int(&npe)
 
 	}
 }
@@ -246,96 +227,56 @@ func producteur(lire chan message_lec, uP chan requete) {
 // Partie 2: les producteurs distants cree des personne_int implementees par des personne_dist qui contiennent un identifiant unique
 // utilisé pour retrouver l'object sur le serveur
 // la creation sur le client d'une personne_dist doit declencher la creation sur le serveur d'une "vraie" personne, initialement vide, de statut V
-func producteur_distant(uPD chan requete, port int, proxer chan message_proxy,frais chan int) {
+func producteur_distant(prodChan chan personne_int,  proxer chan message_proxy,frais chan int) {
 	for{
-		req := <-uPD
-		go func ( r requete ){
-			n := <- frais
-			fmt.Println("Porducteur Distant crée identifiant", n)
-			np := personne_dist{identifiant: n, proxy: proxer}
-			local := make (chan string)
-			proxer <- message_proxy{identifiant:n , methode:"creer", retour: local}
-			<- local // le serveur est contacté pour qu'une personne_serv y soit crée
-			fmt.Println("holaaaaa")
-			r.retourPD <- np
-		}(req)
+		n := <- frais
+		np := personne_dist{identifiant: n, proxy: proxer}
+		local := make (chan string)
+		proxer <- message_proxy{identifiant:n , methode:"creer", retour: local}
+		<- local
+		prodChan <- np
 	}
-}
-type requete struct{
-	personne personne_int
-	retourW  chan personne_int
-	retourP chan personne_int
-	retourPD chan personne_dist
-	retourPDW chan personne_dist
 }
 
 // Partie 1: les gestionnaires recoivent des personne_int des producteurs et des ouvriers et maintiennent chacun une file de personne_int
 // ils les passent aux ouvriers quand ils sont disponibles
 // ATTENTION: la famine des ouvriers doit être évitée: si les producteurs inondent les gestionnaires de paquets, les ouvrier ne pourront
 // plus rendre les paquets surlesquels ils travaillent pour en prendre des autres
-func gestionnaire(uP chan requete, uW chan requete, uPD chan requete, uPDW chan requete){
-	var queue []personne_int
-	var queue2 []personne_dist
-	turnProd := 0
-	turnWork := 0
-	turnProdD := 0
-	turnWorkD := 0
-
-	rP := make(chan personne_int)
-	rW := make(chan personne_int)
-	rPD := make(chan personne_dist)
-	rPDW := make(chan personne_dist)
-
-	//uP <- requete{retourW:rW, retourP:rP, retourPD:rPD}
-	uPD <- requete{retourW:rW, retourP:rP, retourPD:rPD}
+func gestionnaire(fromProducer chan personne_int, toOuvr chan personne_int, fromOuv chan personne_int){
+	queue := make([]personne_int, 0)
 	for {
-		select {
-		case work := <-rW:
-			if turnProd > turnWork {
+		switch len(queue) {
+		case TAILLE_G:
+			toOuvr <- queue[0]
+			queue = queue[1:]
+		case 0:
+			select {
+			case np := <-fromOuv:
+				queue = append(queue, np)
+			case np := <-fromProducer:
+				queue = append(queue, np)
+			}
 
-				fmt.Println("worker")
-				queue = append(queue, work)
-				turnWork = turnWork + 1
+		default:
+			if len(queue) < TAILLE_G/2 {
+				select {
+				case np := <-fromOuv:
+					queue = append(queue, np)
+				case np := <-fromProducer:
+					queue = append(queue, np)
+				case toOuvr <- queue[0]:
+					queue = queue[1:]
+				}
+			} else {
+				select {
+				case np := <-fromOuv:
+					queue = append(queue, np)
+				case toOuvr <- queue[0]:
+					queue = queue[1:]
+				}
 			}
-		/*case prod := <-rP:
-		if turnProd == turnWork {
-			fmt.Println("prod")
-			queue = append(queue, prod)
-			turnProd = turnProd+1
-		}*/
-		case pdWork := <-rPDW:
-			if turnProdD == turnWorkD {
-				fmt.Println("pdw")
-				queue2 = append(queue2, pdWork)
-				turnProdD = turnProdD + 1
-			}
-		case pd := <-rPD:
-			if turnProdD == turnWorkD {
-				fmt.Println("pd")
-				queue2 = append(queue2, pd)
-				turnProdD = turnProdD + 1
-			}
+		}
 	}
-	if len(queue)>0 {
-		fmt.Println("workeruuu")
-		toSend := queue[0]
-		queue = queue[1:]
-		uW <- requete{personne: toSend, retourW: rW, retourP: rP, retourPD:rPD }
-	}
-	if len(queue)<TAILLE_G {
-		//uP <- requete{retourW: rW, retourP: rP, retourPD:rPD}
-	}
-	if len(queue2)>0 {
-		fmt.Println("workeruyyyy")
-		toSend := queue2[0]
-		queue2 = queue2[1:]
-		uPDW <- requete{personne: toSend, retourW: rW, retourP: rP, retourPD:rPD, retourPDW:rPDW}
-	}
-	if len(queue2)<TAILLE_G {
-		//uP <- requete{retourW: rW, retourP: rP, retourPD:rPD}
-		uPD <- requete{retourW: rW, retourP: rP, retourPD:rPD, retourPDW:rPDW}
-	}
-}
 }
 
 // Partie 1: le collecteur recoit des personne_int dont le statut est c, il les collecte dans un journal
@@ -345,7 +286,7 @@ func collecteur(toCollector chan personne_int, quit chan int) {
 	for {
 		select{
 		case p := <- toCollector:
-			journal = journal + p.vers_string()+ " \n"
+			journal +=  p.vers_string()+ " \n"
 		case <- quit:
 			fmt.Println("Collecteur: J'ai réçu le signal d'arrêt")
 			fmt.Println("Journal: "+ journal)
@@ -361,33 +302,28 @@ func main() {
 		fmt.Println("Format: client <port> <millisecondes d'attente>")
 		return
 	}
-	port, _ := strconv.Atoi(os.Args[1]) // utile pour la partie 2
 	millis, _ := strconv.Atoi(os.Args[2]) // duree du timeout
 	fintemps := make(chan int)
-	// creer les canaux
-	toCollector := make (chan personne_int)
-	lire := make (chan message_lec)
-
-	uP := make(chan requete)
-	uW := make(chan requete)
-	uPD := make(chan requete)
-	uPDW := make(chan requete)
-
+	prodGest := make(chan personne_int)
+	gestOuvr := make(chan personne_int)
+	gestOuvr2 := make(chan personne_int)
+	ouvrCollect := make(chan personne_int)
+	lire := make(chan message_lec)
 	proxer := make(chan message_proxy)
 	frais := make(chan int)
 
 	// lancer les goroutines (parties 1 et 2): 1 lecteur, 1 collecteur, des producteurs,
 	//des gestionnaires, des ouvriers
 	go func() { lecteur(lire)}()
-	go func() { collecteur(toCollector,fintemps)}()
+	go func() { collecteur(ouvrCollect,fintemps)}()
 	for i := 0 ; i <NB_O ; i++ {
-		go func() { ouvrier(toCollector, uW ) }()
+		go func() { ouvrier(gestOuvr,gestOuvr2, ouvrCollect) }()
 	}
 	for i := 0 ; i <NB_PD ; i++ {
-		go func() { producteur(lire, uP) }()
+		go func() { producteur(lire, prodGest) }()
 	}
 	for i := 0 ; i <NB_G ; i++ {
-		go func() { gestionnaire(uP, uW, uPD,uPDW) }()
+		go func() { gestionnaire(prodGest,gestOuvr, gestOuvr2) }()
 	}
 
 	fmt.Println(millis)
@@ -396,14 +332,9 @@ func main() {
 	go func(frais chan int ){ generator(frais)}(frais)
 
 	for i := 0 ; i <NB_PD ; i++ {
-
-		go func(uPD chan requete, port int,frais chan int) {
-			producteur_distant(uPD,port,proxer,frais) }(uPD, port, frais)
+			go func() {producteur_distant(prodGest, proxer,frais) }()
 	}
-
-
 	time.Sleep(time.Duration(millis) * time.Millisecond)
-	fmt.Println("je sors")
 	fintemps <- 0
 	<-fintemps
 }

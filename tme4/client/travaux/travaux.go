@@ -15,9 +15,9 @@ var noms = []string{"BALKANY", "CAHUZAC", "TAPIE", "FERRAND", "GUEANT"}
 func f1(p st.Personne) st.Personne {
 	np := p
 	if np.Sexe == "M" {
-		np.Prenom = "Jean-" + p.Prenom
+		np.Prenom = " Partie1-Jean-" + p.Prenom
 	} else {
-		np.Prenom = "Marie-" + p.Prenom
+		np.Prenom = " Partie1-Marie-" + p.Prenom
 	}
 	return np
 }

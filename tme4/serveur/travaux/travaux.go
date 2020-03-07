@@ -11,19 +11,19 @@ import (
 
 
 func f1(p st.Personne) st.Personne {
-	return  st.Personne{Age:4000, Nom:p.Nom, Prenom:p.Prenom+"TOOOOOOO", Sexe:p.Sexe}
+	return  st.Personne{Age:4000, Nom:p.Nom, Prenom:p.Prenom+"Partie2", Sexe:p.Sexe}
 }
 
 func f2(p st.Personne) st.Personne {
-	return  st.Personne{Age:p.Age, Nom:"EHY", Prenom:p.Prenom, Sexe:p.Sexe}
+	return  st.Personne{Age:p.Age, Nom:" Partie2", Prenom:p.Prenom, Sexe:p.Sexe}
 }
 
 func f3(p st.Personne) st.Personne {
-	return  st.Personne{Age:p.Age, Nom:p.Nom, Prenom:p.Prenom+"-TAAAA"+p.Prenom, Sexe:p.Sexe}
+	return  st.Personne{Age:p.Age, Nom:p.Nom, Prenom:p.Prenom+"-Partie2"+p.Prenom, Sexe:p.Sexe}
 }
 
 func f4(p st.Personne) st.Personne {
-	return  st.Personne{Age:p.Age, Nom:p.Nom+"TACHE 4", Prenom:p.Prenom, Sexe:p.Sexe}
+	return  st.Personne{Age:p.Age, Nom:p.Nom+"Partie2", Prenom:p.Prenom, Sexe:p.Sexe}
 }
 
 func UnTravail() func(st.Personne) st.Personne {
